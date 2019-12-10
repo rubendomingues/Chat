@@ -1,11 +1,16 @@
+import java.io.*;
+import java.net.*;
 import java.nio.*;
+import java.nio.channels.*;
+import java.nio.charset.*;
+import java.util.*;
 
 class Client {
 
     String nick;
     String room;
     State status;
-    SocketChannel sc;
+    String buffer;
 
     static enum State{
         INIT,
@@ -13,11 +18,11 @@ class Client {
         INSIDE
     }
 
-    public Client(String nick, String room, State status, SocketChannel sc) {
-        this.nick = nick;
-        this.room = room;
-        this.status = status;
-        this.sc = sc;
+    public Client() {
+        this.nick = "";
+        this.room = "";
+        this.status = State.INIT;
+        this.buffer = "";
     }
 
     public String getNick() {
@@ -44,11 +49,12 @@ class Client {
         this.status = status;
     }
 
-    public SocketChannel getSc() {
-        return sc;
+    public String getBuffer(){
+        return buffer;
     }
 
-    public void setSc(SocketChannel sc) {
-        this.sc = sc;
+    public void setBuffer(String buffer){
+        this.buffer = buffer;
     }
+
 }
