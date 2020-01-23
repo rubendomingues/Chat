@@ -96,15 +96,11 @@ public class ChatServer
 
               // boolean ok = processInput( sc );
               String message = decoder.decode(buffer).toString();
-              clients.get(sc).setBuffer(clients.get(sc).getBuffer()+message);
 
               if(message.charAt(message.length()-1)!='\n')
                 continue;
 
-              String usermessage = clients.get(sc).getBuffer();
-              clients.get(sc).setBuffer("");
-
-              String userMessages[] = usermessage.split("\n");
+              String userMessages[] = message.split("\n");
 
               // If the connection is dead, remove it from the selector
               // and close it
@@ -116,9 +112,10 @@ public class ChatServer
                   try {
                     s = sc.socket();
                     System.out.println( "Closing connection to "+s );
-                    if(clients.get(sc).status == Client.State.INIT){
-                      messageRoom("LEFT " + clients.get(sc).nick, clients.get(sc).room);
+                    if(clients.get(sc).getStatus() == Client.State.INIT){
+                      messageRoom("LEFT " + clients.get(sc).getNick(), clients.get(sc).getRoom());
                     }
+                    usernames.remove(clients.get(sc).getNick());
                     clients.remove(sc);
                     s.close();
                   } catch( IOException ie ) {
@@ -134,6 +131,8 @@ public class ChatServer
 
               try {
                 sc.close();
+                usernames.remove(clients.get(sc).getNick());
+                clients.remove(sc);
               } catch( IOException ie2 ) { System.out.println( ie2 ); }
 
               System.out.println( "Closed "+sc );
@@ -151,7 +150,7 @@ public class ChatServer
 
   static private void messageRoom(String message, String room)throws IOException{
     for(SocketChannel sc : clients.keySet()){
-      if(clients.get(sc).room.equals(room)){
+      if(clients.get(sc).getRoom().equals(room)){
         buffer.clear();
         buffer.put(message.getBytes());
         buffer.flip();
@@ -164,7 +163,7 @@ public class ChatServer
 
   static private void messagePrivate(String message, String person)throws IOException{
     for(SocketChannel sc : clients.keySet()){
-      if(clients.get(sc).nick.equals(person)){
+      if(clients.get(sc).getNick().equals(person)){
         buffer.clear();
         buffer.put(message.getBytes());
         buffer.flip();
@@ -191,45 +190,47 @@ public class ChatServer
     String totalMessage[] = message.split(" ");
 
     if(totalMessage[0].equals("/nick")){
-      if(!usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.INIT){
-        clients.get(sc).nick = totalMessage[1];
-        clients.get(sc).status = Client.State.OUTSIDE;
+      if(!usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.INIT){
+        clients.get(sc).setNick(totalMessage[1]);
+        clients.get(sc).setStatus(Client.State.OUTSIDE);
         usernames.add(totalMessage[1]);
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
       }
-      else if(usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.INIT){
+      else if(usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.INIT){
         buffer.clear();
         buffer.put("ERROR\n".getBytes());
         buffer.flip();
         sc.write(buffer);
       }
-      else if(!usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.OUTSIDE){
-        clients.get(sc).nick = totalMessage[1];
+      else if(!usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.OUTSIDE){
+        usernames.remove(clients.get(sc).getNick());
+        clients.get(sc).setNick(totalMessage[1]);
         usernames.add(totalMessage[1]);
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
       }
-      else if(usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.OUTSIDE){
+      else if(usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.OUTSIDE){
         buffer.clear();
         buffer.put("ERROR\n".getBytes());
         buffer.flip();
         sc.write(buffer);
       }
-      else if(!usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.INSIDE){
-        messageRoom("NEWNICK " + clients.get(sc).nick +" "+totalMessage[1]+"\n", clients.get(sc).room);
-        clients.get(sc).nick = totalMessage[1];
+      else if(!usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.INSIDE){
+        messageRoom("NEWNICK " + clients.get(sc).getNick() +" "+totalMessage[1]+"\n", clients.get(sc).getRoom());
+        usernames.remove(clients.get(sc).getNick());
+        clients.get(sc).setNick(totalMessage[1]);
         usernames.add(totalMessage[1]);
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
       }
-      else if(usernames.contains(totalMessage[1]) && clients.get(sc).status == Client.State.INSIDE){
+      else if(usernames.contains(totalMessage[1]) && clients.get(sc).getStatus() == Client.State.INSIDE){
         buffer.clear();
         buffer.put("ERROR\n".getBytes());
         buffer.flip();
@@ -237,25 +238,25 @@ public class ChatServer
       }
     }
     else if(totalMessage[0].equals("/join")){
-      if(clients.get(sc).status == Client.State.OUTSIDE){
-        clients.get(sc).status = Client.State.INSIDE;
+      if(clients.get(sc).getStatus() == Client.State.OUTSIDE){
+        clients.get(sc).setStatus(Client.State.INSIDE);
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
-        messageRoom("JOINED " + clients.get(sc).nick+"\n", totalMessage[1]);
-        clients.get(sc).room = totalMessage[1];
+        messageRoom("JOINED " + clients.get(sc).getNick()+"\n", totalMessage[1]);
+        clients.get(sc).setRoom(totalMessage[1]);
       }
-      else if(clients.get(sc).status == Client.State.INSIDE){
+      else if(clients.get(sc).getStatus() == Client.State.INSIDE){
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
-        String room = clients.get(sc).room;
-        clients.get(sc).room = "";
-        messageRoom("LEFT " + clients.get(sc).nick+"\n", room);
-        messageRoom("JOINED " + clients.get(sc).nick+"\n", totalMessage[1]);
-        clients.get(sc).room = totalMessage[1];
+        String room = clients.get(sc).getRoom();
+        clients.get(sc).setRoom("");
+        messageRoom("LEFT " + clients.get(sc).getNick()+"\n", room);
+        messageRoom("JOINED " + clients.get(sc).getNick()+"\n", totalMessage[1]);
+        clients.get(sc).setRoom(totalMessage[1]);
       }
       else{
         buffer.clear();
@@ -265,34 +266,48 @@ public class ChatServer
       }
     }
     else if(totalMessage[0].equals("/leave")){
-      if(clients.get(sc).status == Client.State.INSIDE){
+      if(clients.get(sc).getStatus() == Client.State.INSIDE){
         buffer.clear();
         buffer.put("OK\n".getBytes());
         buffer.flip();
         sc.write(buffer);
-        String room = clients.get(sc).room;
-        clients.get(sc).room = "";
-        messageRoom("LEFT " + clients.get(sc).nick+"\n", room);
-        clients.get(sc).status = Client.State.OUTSIDE;
+        String room = clients.get(sc).getRoom();
+        clients.get(sc).setRoom("");
+        messageRoom("LEFT " + clients.get(sc).getNick()+"\n", room);
+        clients.get(sc).setStatus(Client.State.OUTSIDE);
+      }
+      else{
+        buffer.clear();
+        buffer.put("ERROR\n".getBytes());
+        buffer.flip();
+        sc.write(buffer);
       }
     }
     else if(totalMessage[0].equals("/priv")){
-      int flag = 0;
-      for(SocketChannel sct : clients.keySet()){
-        if(clients.get(sct).nick.equals(totalMessage[1])){
+      if(clients.get(sc).getStatus() == Client.State.INSIDE){
+        int flag = 0;
+        for(SocketChannel sct : clients.keySet()){
+          if(clients.get(sct).getNick().equals(totalMessage[1]) && clients.get(sct).getRoom().equals(clients.get(sc).getRoom())){
+            buffer.clear();
+            buffer.put("OK\n".getBytes());
+            buffer.flip();
+            sc.write(buffer);
+            flag=1;
+            String mensagem ="";
+            for(int i=2; i<totalMessage.length; i++)
+              mensagem+=" "+totalMessage[i];
+            messagePrivate("PRIVATE " + clients.get(sc).getNick()+mensagem+"\n",totalMessage[1]);
+            break;
+          }
+        }
+        if(flag==0){
           buffer.clear();
-          buffer.put("OK\n".getBytes());
+          buffer.put("ERROR\n".getBytes());
           buffer.flip();
           sc.write(buffer);
-          flag=1;
-          String mensagem ="";
-          for(int i=2; i<totalMessage.length; i++)
-            mensagem+=totalMessage[i];
-          messagePrivate("PRIVATE " + clients.get(sc).nick+" "+mensagem+"\n",totalMessage[1]);
-          break;
         }
       }
-      if(flag==0){
+      else{
         buffer.clear();
         buffer.put("ERROR\n".getBytes());
         buffer.flip();
@@ -300,27 +315,36 @@ public class ChatServer
       }
     }
     else if(totalMessage[0].equals("/bye")){
-      if(clients.get(sc).status != Client.State.INSIDE){
+      if(clients.get(sc).getStatus() != Client.State.INSIDE){
         buffer.clear();
         buffer.put("BYE\n".getBytes());
         buffer.flip();
         sc.write(buffer);
-        usernames.remove(clients.get(sc).nick);
-        clients.get(sc).room="";
+        usernames.remove(clients.get(sc).getNick());
+        clients.get(sc).setRoom("");
         return false;
       }
-      else if(clients.get(sc).status == Client.State.INSIDE){
+      else if(clients.get(sc).getStatus() == Client.State.INSIDE){
         buffer.clear();
         buffer.put("BYE\n".getBytes());
         buffer.flip();
         sc.write(buffer);
-        usernames.remove(clients.get(sc).nick);
+        usernames.remove(clients.get(sc).getNick());
+        String room = clients.get(sc).getRoom();
+        clients.get(sc).setRoom("");
+        messageRoom("LEFT "+clients.get(sc).getNick()+"\n",room);
         return false;
       }
     }
+    else if(totalMessage[0].charAt(0) == '/' && totalMessage[0].charAt(1)!='/'){
+      buffer.clear();
+      buffer.put("ERROR\n".getBytes());
+      buffer.flip();
+      sc.write(buffer);
+    }
     else {
-      if(clients.get(sc).status == Client.State.INSIDE)
-        messageRoom("MESSAGE "+ clients.get(sc).nick +" "+message+"\n",clients.get(sc).room);
+      if(clients.get(sc).getStatus() == Client.State.INSIDE)
+        messageRoom("MESSAGE "+ clients.get(sc).getNick() +" "+message+"\n",clients.get(sc).getRoom());
       else{
         buffer.clear();
         buffer.put("ERROR\n".getBytes());

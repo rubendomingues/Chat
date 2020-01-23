@@ -4,7 +4,9 @@ import java.util.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
-
+import java.nio.*;
+import java.nio.channels.*;
+import java.nio.charset.*;
 
 public class ChatClient {
 
@@ -16,10 +18,13 @@ public class ChatClient {
 
     // Se for necessário adicionar variáveis ao objecto ChatClient, devem
     // ser colocadas aqui
+    // A pre-allocated buffer for the received data
+    static private ByteBuffer buffer = ByteBuffer.allocate( 16384 );
+    private SocketChannel sc = null;
 
-    private Socket ClientSocket;
-    private DataOutputStream ServerInput;
-    private BufferedReader ServerOutput;
+    // Decoder for incoming text -- assume UTF-8
+    static private final Charset charset = Charset.forName("UTF8");
+    static private final CharsetDecoder decoder = charset.newDecoder();
 
     // Método a usar para acrescentar uma string à caixa de texto
     // * NÃO MODIFICAR *
@@ -64,10 +69,10 @@ public class ChatClient {
         // Se for necessário adicionar código de inicialização ao
         // construtor, deve ser colocado aqui
 
-        ClientSocket = new Socket(server,port);
-        ServerInput = new DataOutputStream(ClientSocket.getOutputStream());
-        ServerOutput = new BufferedReader(new InputStreamReader(ClientSocket.getInputStream()));
-
+        Thread t = new Thread();
+        t.run();
+        InetSocketAddress sa = new InetSocketAddress(server,port);
+        sc = SocketChannel.open(sa);
     }
 
 
@@ -75,15 +80,54 @@ public class ChatClient {
     // na caixa de entrada
     public void newMessage(String message) throws IOException {
         // PREENCHER AQUI com código que envia a mensagem ao servidor
-
-
-
+        buffer.clear();
+        // buffer = charset.encode(message+"\n");
+        sc.write(charset.encode(message+"\n"));
     }
 
 
     // Método principal do objecto
     public void run() throws IOException {
         // PREENCHER AQUI
+        while(true){
+          try{
+            buffer.clear();
+            sc.read(buffer);
+            buffer.flip();
+
+            if(buffer.limit() == 0)
+              continue;
+
+            // boolean ok = processInput( sc );
+            String message = decoder.decode(buffer).toString();
+
+            if(message.charAt(message.length()-1)!='\n')
+              continue;
+
+            String totalMessage[] = message.split(" ");
+            if(totalMessage[0].equals("MESSAGE")){
+              String newMessage = totalMessage[1]+": ";
+              for(int i=2; i<totalMessage.length;i++){
+                newMessage+=" "+totalMessage[i];
+              }
+              printMessage(newMessage);
+            }
+            else if(totalMessage[0].equals("LEFT")){
+              String newTemp[] = totalMessage[1].split("\n");
+              String newMessage = newTemp[0] + " saiu da sala\n";
+              printMessage(newMessage);
+            }
+            else if(totalMessage[0].equals("JOINED")){
+              String newTemp[] = totalMessage[1].split("\n");
+              String newMessage = newTemp[0] + " entrou na sala\n";
+              printMessage(newMessage);
+            }
+            else
+              printMessage(message);
+          } catch( IOException ie ){
+            System.out.println("ERROR");
+          }
+        }
 
     }
 

@@ -10,7 +10,6 @@ class Client {
     String nick;
     String room;
     State status;
-    String buffer;
 
     static enum State{
         INIT,
@@ -22,7 +21,6 @@ class Client {
         this.nick = "";
         this.room = "";
         this.status = State.INIT;
-        this.buffer = "";
     }
 
     public String getNick() {
@@ -48,13 +46,4 @@ class Client {
     public void setStatus(State status) {
         this.status = status;
     }
-
-    public String getBuffer(){
-        return buffer;
-    }
-
-    public void setBuffer(String buffer){
-        this.buffer = buffer;
-    }
-
 }
